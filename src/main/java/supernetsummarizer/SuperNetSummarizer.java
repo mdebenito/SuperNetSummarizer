@@ -11,14 +11,29 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- *
+ * Main library class.
  */
 public class SuperNetSummarizer {
-    private static final Logger logger = LogManager.getLogger(SuperNetSummarizer.class);
+    /**
+     * Logger Object (Log4j2)
+     */
+    public static Logger logger = LogManager.getLogger(SuperNetSummarizer.class);
+
+    /**
+     * Summarizes the list of strings into Supernets.
+     * @param addresses List of strings corresponding to IP addresses or CIDR ranges.
+     * @return List of strings containing the biggest possible supernets and the leftover IP addresses after summarizing the input list
+     * @throws UnknownHostException
+     */
     public static List<String> summarize(List<String> addresses) throws UnknownHostException {
         return briefIpList(addresses);
     }
 
+    /**
+     * Checks if a string is a valid IP address
+     * @param line String to check
+     * @return true if the string is a valid IP address
+     */
     public static boolean isValidIp(String line) {
         final String IPADDRESS_PATTERN =
                 "^([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\." +
@@ -29,6 +44,11 @@ public class SuperNetSummarizer {
         return pattern.matcher(line).matches();
     }
 
+    /**
+     * Checks if a string is a valid CIDR range
+     * @param line String to check
+     * @return true if the string is a valid CIDR range
+     */
     public static boolean isValidCIDRRange(String line){
 
         final String CIDR_PATTERN =
@@ -40,6 +60,12 @@ public class SuperNetSummarizer {
         return pattern.matcher(line).matches();
     }
 
+    /**
+     * Method that actually performs the summarization
+     * @param ipAddresses List of strings to summarize
+     * @return Summarized list of strings
+     * @throws UnknownHostException
+     */
     private static List<String> briefIpList(List<String> ipAddresses) throws UnknownHostException {
         List<String> result = new ArrayList<>();
         List<String> ranges = new ArrayList<>();
@@ -54,8 +80,6 @@ public class SuperNetSummarizer {
                 ips.add(ip);
             }
         }
-
-
         for(int mask = 16; mask<=30 ; mask++) {
             for(int i=0;i<ips.size();i++){
                 InetAddress tempAddr = InetAddress.getByName(ips.get(i));
