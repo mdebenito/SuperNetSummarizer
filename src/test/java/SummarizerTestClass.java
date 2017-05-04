@@ -1,9 +1,12 @@
 import org.junit.Test;
 import supernetsummarizer.SuperNetSummarizer;
 
+import java.io.*;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Class that tests the summarizer library with some mock IP ranges.
@@ -34,12 +37,48 @@ public class SummarizerTestClass {
 
         try {
             List <String> summarized = SuperNetSummarizer.summarize(ips);
-            System.out.println(summarized.size());
-
+            assertEquals("Number of ranges/IPs",22,summarized.size());
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
+    }
 
+    @Test
+    public void summarizeBigListTest(){
+        File dir = new File("input/");
+        File file = new File(dir,"input.dat");
+
+        List<String> ips = new ArrayList<>();
+        List <String> summarized = new ArrayList<>();
+
+        if(file.exists()){
+            try {
+                try (BufferedReader br = new BufferedReader(new FileReader(file))) {
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        ips.add(line);
+                    }
+
+                    summarized = SuperNetSummarizer.summarize(ips);
+
+                }
+
+
+                File outfile = new File(dir,"output.dat");
+
+                FileWriter fw = new FileWriter(outfile);
+
+                for (String s : summarized) {
+                    fw.write(s+System.getProperty("line.separator"));
+                }
+
+                fw.close();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+        }
 
     }
 }
