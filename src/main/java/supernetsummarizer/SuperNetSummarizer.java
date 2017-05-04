@@ -1,12 +1,11 @@
 package supernetsummarizer;
 
 import org.apache.commons.net.util.SubnetUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -15,13 +14,28 @@ import java.util.regex.Pattern;
  */
 public class SuperNetSummarizer {
     /**
-     * Logger Object (Log4j2)
+     * Default ranges to explore
      */
-    public static Logger logger = LogManager.getLogger(SuperNetSummarizer.class);
+    public static int MINIMUM_RANGE_MASK = 8;
+    public static int MAXIMUM_RANGE_MASK = 30;
 
     /**
      * Summarizes the list of strings into Supernets.
-     * @param addresses List of strings corresponding to IP addresses or CIDR ranges.
+     *
+     * NOTE: Network address (i.e.: 192.168.1.8 in 192.168.1.8/30) and Broadcast address (i.e.: 192.168.1.11 in 192.168.1.8/30) are not
+     * considered to be part of a CIDR range.
+     *
+     * In situations where they are present in the input list as standalone IP addresses, they will also be present in the output list as such
+     * if they are not eligible to be inside a bigger supernet.
+     *
+     * Examples:
+     *  - Input: 192.168.1.8, 192.168.1.9, 192.168.1.10, 192.168.1.11
+     *  - Output: 192.168.1.8/30, 192.168.1.8, 192.168.1.11
+     *
+     *  - Input: 192.168.1.9, 192.168.1.10
+     *  - Output: 192.168.1.8/30
+     *
+     * @param addresses List of strings corresponding to IP addresses and/or CIDR ranges.
      * @return List of strings containing the biggest possible supernets and the leftover IP addresses after summarizing the input list
      * @throws UnknownHostException
      */
@@ -66,44 +80,51 @@ public class SuperNetSummarizer {
      * @return Summarized list of strings
      * @throws UnknownHostException
      */
-    private static List<String> briefIpList(List<String> ipAddresses) throws UnknownHostException {
+    private static List<String> briefIpList(List<String> ipAddresses) throws UnknownHostException, IllegalArgumentException {
         List<String> result = new ArrayList<>();
         List<String> ranges = new ArrayList<>();
         List<String> ips = new ArrayList<>();
 
-        //Extract ranges and add them to their own list.
-        //Extract IPs and add them to their own list
-        for(String ip : ipAddresses){
-            if(isValidCIDRRange(ip)){
-                ranges.add(ip);
-            }else if(isValidIp(ip)){
-                ips.add(ip);
+        //Extract ranges and deploy them into standalone IPs.
+        //Extract IPs and add them to a list
+        //We remove any duplicate IPs we might find
+        for(String entry : ipAddresses){
+            if(isValidCIDRRange(entry)){
+                SubnetUtils tempCidr = new SubnetUtils(entry);
+                String[] ipsInRange = tempCidr.getInfo().getAllAddresses();
+                for(String ip : ipsInRange){
+                    if(!ips.contains(ip) && !ipAddresses.contains(ip))
+                        ips.add(ip);
+                }
+            }else if(isValidIp(entry) && !ips.contains(entry)){
+                ips.add(entry);
+            }else{
+                throw new IllegalArgumentException("The entry '"+entry+"' is not a valid IP address or CIDR range.");
             }
         }
-        for(int mask = 16; mask<=30 ; mask++) {
+        //We start with the smallest range and try to build full ranges
+        for(int mask = MINIMUM_RANGE_MASK; mask<=MAXIMUM_RANGE_MASK ; mask++) {
             for(int i=0;i<ips.size();i++){
-                InetAddress tempAddr = InetAddress.getByName(ips.get(i));
-                boolean found = false;
-                for(String range :ranges){
-                    SubnetUtils tempCidr = new SubnetUtils(range);
-                    if(tempCidr.getInfo().isInRange(tempAddr.toString().replace("/","")) ||
-                            tempCidr.getInfo().getNetworkAddress().equals(tempAddr.toString().replace("/","")) ||
-                            tempCidr.getInfo().getBroadcastAddress().equals(tempAddr.toString().replace("/",""))){
-                        found = true;
-                    }
-                }
+                String currentIp = ips.get(i);
+                // Check if the IP address is already in a known range. If it is, skip it.
+                boolean found = isIpAlreadyInRange(ranges, currentIp);
+
                 if(!found){
-                    SubnetUtils ourCIDRRange = new SubnetUtils(ips.get(i)+"/"+mask);
+                    //The IP is not already contemplated in a larger range. We start a potential full range with it
+                    SubnetUtils currentCIDRRange = new SubnetUtils(currentIp+"/"+mask);
                     List<String> addressesInThisRange = new ArrayList<>();
+                    //Let's list the IPs that would fit in the current range (including the one that generated it)
                     for(int k=i;k<ips.size() ;k++){
-                        if(ourCIDRRange.getInfo().isInRange(ips.get(k))){
-                            addressesInThisRange.add(ips.get(k));
+                        String checkIp = ips.get(k);
+                        if(currentCIDRRange.getInfo().isInRange(checkIp)){
+                            addressesInThisRange.add(checkIp);
                         }
                     }
+                    //If we have enough addresses to fill a range
                     if(addressesInThisRange.size()>0){
                         double minimumNumberOfIpAddresses = Math.pow(2,32-mask)-2;
                         if(addressesInThisRange.size()==minimumNumberOfIpAddresses){ //Got a full range
-                            ranges.add(ourCIDRRange.getInfo().getNetworkAddress()+"/"+mask);
+                            ranges.add(currentCIDRRange.getInfo().getNetworkAddress()+"/"+mask);
                         }
                     }
                 }
@@ -125,7 +146,29 @@ public class SuperNetSummarizer {
         }
 
         result.addAll(ranges);
-
+        Collections.sort(result);
         return result;
+    }
+
+    /**
+     * Checks if a given IP address is contained in any of the given CIDR ranges. In this particular case, Network and Broadcast
+     * addresses are considered part of the range to avoid duplicate ranges. That IP addresses are added in the end as standalone
+     * addresses if they do not fit inside larger ranges.
+     * @param ranges List of CIDR ranges to check
+     * @param ipAddress IP Address to search
+     * @return True if the address corresponds to any known range
+     */
+    private static boolean isIpAlreadyInRange(List<String> ranges, String ipAddress) throws UnknownHostException {
+        boolean found = false;
+        InetAddress tempAddr = InetAddress.getByName(ipAddress);
+        for(String range : ranges){
+            SubnetUtils tempCidr = new SubnetUtils(range);
+            if(tempCidr.getInfo().isInRange(tempAddr.toString().replace("/","")) ||
+                    tempCidr.getInfo().getNetworkAddress().equals(tempAddr.toString().replace("/","")) ||
+                    tempCidr.getInfo().getBroadcastAddress().equals(tempAddr.toString().replace("/",""))){
+                found = true;
+            }
+        }
+        return found;
     }
 }
