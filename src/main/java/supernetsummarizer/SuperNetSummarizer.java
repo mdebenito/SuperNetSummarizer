@@ -89,17 +89,23 @@ public class SuperNetSummarizer {
         //Extract IPs and add them to a list
         //We remove any duplicate IPs we might find
         for(String entry : ipAddresses){
-            if(isValidCIDRRange(entry)){
-                SubnetUtils tempCidr = new SubnetUtils(entry);
-                String[] ipsInRange = tempCidr.getInfo().getAllAddresses();
-                for(String ip : ipsInRange){
-                    if(!ips.contains(ip) && !ipAddresses.contains(ip))
-                        ips.add(ip);
+            if(!entry.equalsIgnoreCase("")) {
+                entry = entry.trim();
+                if (isValidCIDRRange(entry)) {
+                    SubnetUtils tempCidr = new SubnetUtils(entry);
+                    String[] ipsInRange = tempCidr.getInfo().getAllAddresses();
+                    for (String ip : ipsInRange) {
+                        if (!ips.contains(ip) && !ipAddresses.contains(ip))
+                            ips.add(ip);
+                    }
+                }else{
+                    if (isValidIp(entry)) {
+                        if(!ips.contains(entry))
+                            ips.add(entry);
+                    } else {
+                        throw new IllegalArgumentException("The entry '" + entry + "' is not a valid IP address or CIDR range.");
+                    }
                 }
-            }else if(isValidIp(entry) && !ips.contains(entry)){
-                ips.add(entry);
-            }else{
-                throw new IllegalArgumentException("The entry '"+entry+"' is not a valid IP address or CIDR range.");
             }
         }
         //We start with the smallest range and try to build full ranges
