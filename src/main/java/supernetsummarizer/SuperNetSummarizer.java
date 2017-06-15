@@ -1,5 +1,6 @@
 package supernetsummarizer;
 
+import listener.SuperNetSummarizerListener;
 import org.apache.commons.net.util.SubnetUtils;
 
 import java.net.InetAddress;
@@ -13,6 +14,16 @@ import java.util.regex.Pattern;
  * Main library class.
  */
 public class SuperNetSummarizer {
+
+    private List<SuperNetSummarizerListener> listeners = new ArrayList<>();
+
+    /**
+     * Adds a listener to the summarizer events
+     * @param l Listener to be added
+     */
+    public void addListener(SuperNetSummarizerListener l){
+        this.listeners.add(l);
+    }
     /**
      * Default ranges to explore
      */
@@ -39,7 +50,7 @@ public class SuperNetSummarizer {
      * @return List of strings containing the biggest possible supernets and the leftover IP addresses after summarizing the input list
      * @throws UnknownHostException
      */
-    public static List<String> summarize(List<String> addresses) throws UnknownHostException {
+    public List<String> summarize(List<String> addresses) throws UnknownHostException {
         return briefIpList(addresses);
     }
 
@@ -80,7 +91,7 @@ public class SuperNetSummarizer {
      * @return Summarized list of strings
      * @throws UnknownHostException
      */
-    private static List<String> briefIpList(List<String> ipAddresses) throws UnknownHostException, IllegalArgumentException {
+    private List<String> briefIpList(List<String> ipAddresses) throws UnknownHostException, IllegalArgumentException {
         List<String> result = new ArrayList<>();
         List<String> ranges = new ArrayList<>();
         List<String> ips = new ArrayList<>();
@@ -92,6 +103,7 @@ public class SuperNetSummarizer {
             if(!entry.equalsIgnoreCase("")) {
                 entry = entry.trim();
                 if (isValidCIDRRange(entry)) {
+                    publishRangeAnalysisStarted(entry);
                     SubnetUtils tempCidr = new SubnetUtils(entry);
                     String[] ipsInRange = tempCidr.getInfo().getAllAddresses();
                     for (String ip : ipsInRange) {
@@ -108,8 +120,10 @@ public class SuperNetSummarizer {
                 }
             }
         }
+        publishSummarizeStart(ips.size());
         //We start with the smallest range and try to build full ranges
         for(int mask = MINIMUM_RANGE_MASK; mask<=MAXIMUM_RANGE_MASK ; mask++) {
+            publishMaskStarted(mask);
             for(int i=0;i<ips.size();i++){
                 String currentIp = ips.get(i);
                 // Check if the IP address is already in a known range. If it is, skip it.
@@ -156,6 +170,24 @@ public class SuperNetSummarizer {
         return result;
     }
 
+    private void publishMaskStarted(int mask) {
+        for(SuperNetSummarizerListener l : listeners){
+            l.processingMask(mask);
+        }
+    }
+
+    private void publishSummarizeStart(int size) {
+        for(SuperNetSummarizerListener l : listeners){
+            l.summarizingStarted(size);
+        }
+    }
+
+    private void publishRangeAnalysisStarted(String entry) {
+        for(SuperNetSummarizerListener l : listeners){
+            l.analysingRange(entry);
+        }
+    }
+
     /**
      * Checks if a given IP address is contained in any of the given CIDR ranges. In this particular case, Network and Broadcast
      * addresses are considered part of the range to avoid duplicate ranges. That IP addresses are added in the end as standalone
@@ -164,7 +196,7 @@ public class SuperNetSummarizer {
      * @param ipAddress IP Address to search
      * @return True if the address corresponds to any known range
      */
-    private static boolean isIpAlreadyInRange(List<String> ranges, String ipAddress) throws UnknownHostException {
+    private boolean isIpAlreadyInRange(List<String> ranges, String ipAddress) throws UnknownHostException {
         boolean found = false;
         InetAddress tempAddr = InetAddress.getByName(ipAddress);
         for(String range : ranges){

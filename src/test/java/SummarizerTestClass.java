@@ -1,3 +1,4 @@
+import listener.SuperNetSummarizerListener;
 import org.junit.Test;
 import supernetsummarizer.SuperNetSummarizer;
 
@@ -11,7 +12,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * Class that tests the summarizer library with some mock IP ranges.
  */
-public class SummarizerTestClass {
+public class SummarizerTestClass implements SuperNetSummarizerListener {
     @Test
     public void summarizeTest(){
         //Generate IP Ranges
@@ -36,7 +37,9 @@ public class SummarizerTestClass {
             ips.add("10.10.10."+i);
 
         try {
-            List <String> summarized = SuperNetSummarizer.summarize(ips);
+            SuperNetSummarizer s = new SuperNetSummarizer();
+            s.addListener(this);
+            List <String> summarized = s.summarize(ips);
             assertEquals("Number of ranges/IPs",22,summarized.size());
         } catch (UnknownHostException e) {
             e.printStackTrace();
@@ -58,9 +61,10 @@ public class SummarizerTestClass {
                     while ((line = br.readLine()) != null) {
                         ips.add(line);
                     }
+                    SuperNetSummarizer s = new SuperNetSummarizer();
+                    s.addListener(this);
 
-                    summarized = SuperNetSummarizer.summarize(ips);
-
+                    summarized = s.summarize(ips);
                 }
 
 
@@ -80,5 +84,20 @@ public class SummarizerTestClass {
 
         }
 
+    }
+
+    @Override
+    public void processingMask(int mask) {
+        System.out.println("Processing IPs for mask /"+mask);
+    }
+
+    @Override
+    public void summarizingStarted(int size) {
+        System.out.println("Started summarizing "+size+" IPs");
+    }
+
+    @Override
+    public void analysingRange(String entry) {
+        System.out.println("Found range "+entry+", expanding it...");
     }
 }
