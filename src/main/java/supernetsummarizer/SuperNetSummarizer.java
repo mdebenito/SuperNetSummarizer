@@ -104,11 +104,21 @@ public class SuperNetSummarizer {
                 entry = entry.trim();
                 if (isValidCIDRRange(entry)) {
                     publishRangeAnalysisStarted(entry);
-                    SubnetUtils tempCidr = new SubnetUtils(entry);
-                    String[] ipsInRange = tempCidr.getInfo().getAllAddresses();
-                    for (String ip : ipsInRange) {
-                        if (!ips.contains(ip) && !ipAddresses.contains(ip))
-                            ips.add(ip);
+                    if(entry.endsWith("/32")){
+                        String ipBase = entry.split("/")[0];
+                        if (isValidIp(ipBase)) {
+                            if(!ips.contains(ipBase))
+                                ips.add(ipBase);
+                        } else {
+                            throw new IllegalArgumentException("The entry '" + entry + "' is not a valid IP address or CIDR range.");
+                        }
+                    }else {
+                        SubnetUtils tempCidr = new SubnetUtils(entry);
+                        String[] ipsInRange = tempCidr.getInfo().getAllAddresses();
+                        for (String ip : ipsInRange) {
+                            if (!ips.contains(ip) && !ipAddresses.contains(ip))
+                                ips.add(ip);
+                        }
                     }
                 }else{
                     if (isValidIp(entry)) {
