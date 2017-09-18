@@ -1,3 +1,7 @@
 target/
 .idea/
 input/
+
+\.project
+
+\.settings/
