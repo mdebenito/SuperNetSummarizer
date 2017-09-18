@@ -27,8 +27,8 @@ public class SuperNetSummarizer {
     /**
      * Default ranges to explore
      */
-    public static int MINIMUM_RANGE_MASK = 8;
-    public static int MAXIMUM_RANGE_MASK = 30;
+    public static int final MINIMUM_RANGE_MASK = 8;
+    public static int final MAXIMUM_RANGE_MASK = 30;
 
     /**
      * Summarizes the list of strings into Supernets.
@@ -152,8 +152,8 @@ public class SuperNetSummarizer {
                     }
                     //If we have enough addresses to fill a range
                     if(addressesInThisRange.size()>0){
-                        double minimumNumberOfIpAddresses = Math.pow(2,32-mask)-2;
-                        if(addressesInThisRange.size()==minimumNumberOfIpAddresses){ //Got a full range
+                    	Double minimumNumberOfIpAddresses = Math.pow(2,32-((double)mask))-2;
+                        if(addressesInThisRange.size()==minimumNumberOfIpAddresses.intValue()){ //Got a full range
                             ranges.add(currentCIDRRange.getInfo().getNetworkAddress()+"/"+mask);
                         }
                     }
